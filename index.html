@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>登录跳转中...</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f0f0; }
+        .card { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h3 id="status">正在初始化...</h3>
+        <p>请勿关闭此窗口</p>
+    </div>
+
+    <script>
+        // ================= 配置区域 =================
+        // 1. 填入你的 Supabase URL
+        const SUPABASE_URL = 'https://scdsetruethlhxmqmjoy.supabase.co';
+        
+        // 2. 填入你的 Supabase Anon Key (公开Key)
+        const SUPABASE_KEY = 'sb_publishable_zwr2qIHGOcBRDVlYxhOsUg_JfynE8ij';
+
+        // 3. 填入篡改猴脚本运行的网站地址 (Ingress OPR)
+        // 这用于 postMessage 的安全限制，只允许向这个域名发送 Token
+        const TARGET_ORIGIN = 'https://opr.ingress.com';
+        // ===========================================
+
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const statusText = document.getElementById('status');
+
+        async function handleAuth() {
+            // 检查 URL 哈希中是否有 Token
+            const { data: { session }, error } = await supabase.auth.getSession();
+
+            if (session) {
+                statusText.innerText = "登录成功！正在返回...";
+                
+                // 如果有父窗口 (即你是通过篡改猴弹出的)
+                if (window.opener) {
+                    // 发送 Session 数据给父窗口
+                    window.opener.postMessage({
+                        type: 'SUPABASE_AUTH_SUCCESS',
+                        session: session
+                    }, TARGET_ORIGIN); // 安全发送
+
+                    // 稍等片刻后关闭自己
+                    setTimeout(() => window.close(), 1000);
+                } else {
+                    statusText.innerText = "错误：未检测到父窗口。请手动关闭。";
+                }
+            } else {
+                statusText.innerText = "正在跳转 Google 登录...";
+                
+                // 发起 OAuth 登录
+                // redirectTo 设置为当前页面 URL，这样登录完会跳回来触发上面的 if(session) 逻辑
+                const { error } = await supabase.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: {
+                        redirectTo: window.location.href,
+                        queryParams: {
+                            prompt: 'select_account' // 强制显示账号选择器，防止自动登录错账号
+                        }
+                    }
+                });
+                
+                if (error) {
+                    statusText.innerText = "登录出错: " + error.message;
+                    console.error(error);
+                }
+            }
+        }
+
+        handleAuth();
+    </script>
+</body>
+</html>
