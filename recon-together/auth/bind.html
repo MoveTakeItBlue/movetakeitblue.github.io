@@ -52,10 +52,14 @@
             messageEl.className = "";
 
             try {
+                const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNjZHNldHJ1ZXRobGh4bXFtam95Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcwMTE3NTksImV4cCI6MjA4MjU4Nzc1OX0.MlODufWwIUPzbi-AskwaKGRC4Lxwv6RlBd_utFYUrGw";
                 // 3. 发送给 Supabase Edge Function
                 const res = await fetch('https://scdsetruethlhxmqmjoy.supabase.co/functions/v1/google-bind', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+                     },
                     body: JSON.stringify({
                         idToken: response.credential,
                         bindingToken: bindingToken
