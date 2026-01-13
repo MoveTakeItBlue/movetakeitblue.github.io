@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>绑定账号</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f0f2f5; }
+        .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; max-width: 400px; width: 90%; }
+        h2 { margin-bottom: 1.5rem; color: #333; }
+        #message { margin-top: 1rem; font-size: 0.9rem; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+
+    <div class="card">
+        <h2>绑定 Google 账号</h2>
+        <div id="g_id_onload"
+             data-client_id="326108111064-4ujpfbr6jdrugmql31ihidmj2him1af3.apps.googleusercontent.com"
+             data-callback="handleCredentialResponse"
+             data-auto_prompt="false">
+        </div>
+        <div class="g_id_signin"
+             data-type="standard"
+             data-size="large"
+             data-theme="outline"
+             data-text="sign_in_with"
+             data-shape="rectangular"
+             data-logo_alignment="left">
+        </div>
+        <div id="message"></div>
+    </div>
+
+    <script>
+        // 1. 获取 URL 中的 token
+        const params = new URLSearchParams(window.location.search);
+        const bindingToken = params.get('state');
+        const messageEl = document.getElementById('message');
+
+        if (!bindingToken) {
+            document.querySelector('.g_id_signin').style.display = 'none';
+            messageEl.innerText = "错误：链接无效或缺少参数。请在 Telegram 重新发起。";
+            messageEl.className = "error";
+        }
+
+        // 2. Google 登录回调
+        async function handleCredentialResponse(response) {
+            messageEl.innerText = "正在处理绑定...";
+            messageEl.className = "";
+
+            try {
+                // 3. 发送给 Supabase Edge Function
+                const res = await fetch('https://scdsetruethlhxmqmjoy.supabase.co/functions/v1/google-bind', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        idToken: response.credential,
+                        bindingToken: bindingToken
+                    })
+                });
+
+                const data = await res.json();
+
+                if (res.ok && data.success) {
+                    messageEl.innerText = `绑定成功！邮箱 ${data.email} 已连接。您可以关闭此页面。`;
+                    messageEl.className = "success";
+                    document.querySelector('.g_id_signin').style.display = 'none';
+                } else {
+                    throw new Error(data.message || "未知错误");
+                }
+            } catch (err) {
+                messageEl.innerText = "绑定失败: " + err.message;
+                messageEl.className = "error";
+            }
+        }
+    </script>
+</body>
+</html>
