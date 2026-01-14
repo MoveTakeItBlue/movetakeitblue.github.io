@@ -2,60 +2,52 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>Supabase Auth Debug</title>
+    <title>Supabase Auth Redirect</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
-        .card { background: white; padding: 2rem; border: 1px solid #ccc; border-radius: 8px; max-width: 600px; margin: 0 auto; }
-        #log { background: #f4f4f4; border: 1px solid #ddd; padding: 10px; font-family: monospace; font-size: 12px; margin-top: 20px; min-height: 100px; white-space: pre-wrap; word-break: break-all; }
-        .error { color: red; background: #ffe6e6; }
-        .success { color: green; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
+            background-color: #f4f4f4; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0; 
+        }
+        .card { 
+            background: white; 
+            padding: 2rem; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+            text-align: center; 
+            max-width: 400px; 
+            width: 90%; 
+        }
+        h3 { margin-top: 0; color: #333; }
+        p { color: #666; font-size: 14px; margin-bottom: 0; }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px auto;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
     
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 </head>
 <body>
     <div class="card">
-        <h3 id="status">正在启动调试模式...</h3>
-        <p>如果长时间卡在这里，请看下方的日志。</p>
-        <button onclick="window.location.reload()" style="padding:10px;">刷新页面</button>
-        <div id="log">等待日志...</div>
+        <div class="loader"></div>
+        <h3 id="status-title">正在验证身份...</h3>
+        <p id="status-msg">请稍候，正在连接安全服务</p>
     </div>
 
     <script>
-        // === 1. 定义屏幕日志工具 (防止看不到控制台) ===
-        const logBox = document.getElementById('log');
-        const statusText = document.getElementById('status');
-        
-        function printLog(msg, type = 'info') {
-            const time = new Date().toLocaleTimeString();
-            const line = `[${time}] ${msg}\n`;
-            logBox.innerText += line;
-            console.log(msg);
-            if(type === 'error') {
-                statusText.innerText = "❌ 发生错误";
-                statusText.style.color = "red";
-                logBox.classList.add('error');
-            }
-        }
-
-        // === 2. 全局错误捕获 (捕捉 CDN 加载失败等底层错误) ===
-        window.onerror = function(message, source, lineno, colno, error) {
-            printLog(`全局错误: ${message}\n位置: ${source}:${lineno}`, 'error');
-            return true;
-        };
-
-        // === 3. 开始执行业务逻辑 ===
         (async function() {
-            printLog("1. 脚本开始执行");
-
-            // 检查 Supabase 库是否加载
-            if (!window.supabase) {
-                printLog("致命错误: window.supabase 未定义！\nCDN文件未加载成功，可能是网络问题。", 'error');
-                return;
-            }
-            printLog("2. Supabase 库加载检测通过");
-
             // ================= 配置区域 =================
             const SUPABASE_URL = 'https://scdsetruethlhxmqmjoy.supabase.co';
             // 你的 Anon Key (请确认这里是正确的)
@@ -65,44 +57,37 @@
             // ★★★ 请务必把这里换回你在 Dashboard 复制的那个完整的 Key ★★★
             // ===========================================
 
+            const updateStatus = (title, msg) => {
+                document.getElementById('status-title').innerText = title;
+                if(msg) document.getElementById('status-msg').innerText = msg;
+            };
+
             try {
-                // 初始化
+                if (!window.supabase) throw new Error("Supabase SDK加载失败");
                 const { createClient } = window.supabase;
-                // 这里加个 try-catch 专门捕获 createClient 格式错误
-                let supabase;
-                try {
-                    supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-                    printLog("3. createClient 初始化成功");
-                } catch (initErr) {
-                    throw new Error("初始化失败，Key格式可能不对: " + initErr.message);
-                }
+                const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
                 // 获取 Session
-                printLog("4. 正在连接 Supabase 获取 Session...");
                 const { data, error } = await supabase.auth.getSession();
-
-                if (error) {
-                    throw error;
-                }
+                if (error) throw error;
 
                 if (data.session) {
-                    printLog("5. ✅ 状态：已登录 (Token有效)");
-                    printLog("Email: " + data.session.user.email);
+                    // === 已登录 ===
+                    updateStatus("验证成功", "正在返回应用...");
                     
                     if (window.opener) {
-                        printLog("6. 检测到父窗口，发送消息...");
                         window.opener.postMessage({
                             type: 'SUPABASE_AUTH_SUCCESS',
                             session: data.session
                         }, '*');
-                        printLog(">> 消息已发送，1秒后关闭");
-                        setTimeout(() => window.close(), 1000);
+                        // 稍微延迟一下关闭，让用户有个视觉反馈，也确保消息发出
+                        setTimeout(() => window.close(), 500);
                     } else {
-                        printLog("⚠️ 没有父窗口 (可能是直接访问的页面)，无法回调。");
+                        updateStatus("已登录", "未检测到父窗口，请手动关闭此页面");
                     }
                 } else {
-                    printLog("5. 状态：未登录");
-                    printLog(">> 准备跳转 Google...");
+                    // === 未登录，跳转 Google ===
+                    updateStatus("正在跳转...", "即将前往 Google 登录");
                     
                     const { error: signInError } = await supabase.auth.signInWithOAuth({
                         provider: 'google',
@@ -113,12 +98,18 @@
                     });
                     
                     if (signInError) throw signInError;
-                    printLog(">> 跳转请求已发出");
                 }
 
             } catch (err) {
-                printLog("逻辑错误: " + err.message, 'error');
-                printLog(JSON.stringify(err, null, 2));
+                console.error("Auth Error:", err);
+                // 仅在出错时显示红色提示，不显示具体堆栈信息
+                const titleEl = document.getElementById('status-title');
+                titleEl.innerText = "验证失败";
+                titleEl.style.color = "red";
+                document.getElementById('status-msg').innerText = "无法完成认证，请刷新重试。";
+                // 停止转圈动画
+                document.querySelector('.loader').style.borderTop = "4px solid red";
+                document.querySelector('.loader').style.animation = "none";
             }
         })();
     </script>
